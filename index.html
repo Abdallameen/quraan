@@ -173,26 +173,54 @@ main{max-width:1100px;margin:0 auto;padding:36px clamp(16px,5vw,40px) 0;}
 .week-header{font-family:"Aref Ruqaa",serif;color:var(--olive-deep);font-size:19px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--gold);}
 .export-row{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
 .hint{font-size:12.5px;color:var(--ink-soft);}
+.hijri-date{font-size:10.5px;color:var(--gold);font-weight:500;display:block;margin-top:2px;}
+.score-col{width:30px;background:rgba(201,162,75,.05);border-left:1px dashed var(--line);}
+.cell-with-score{display:flex;flex-direction:column;height:100%;}
 /* TOAST */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--olive-deep);color:#fff;padding:14px 26px;border-radius:999px;font-weight:700;font-size:14px;box-shadow:var(--sh-lg);opacity:0;pointer-events:none;transition:all .3s ease;z-index:200;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 /* PRINT */
+.print-header{display:none;}
+.score-box{display:none;}
 @media print{
-  body{background:#fff!important;padding:0!important;font-size:12pt;}
+  body{background:#fff!important;padding:0!important;font-size:11pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .no-print{display:none!important;}
   main{padding:0!important;max-width:none!important;}
-  .plan-grid-wrap{box-shadow:none!important;border:none!important;padding:4px!important;overflow:visible!important;}
-  .plan-table{font-size:11pt;}
-  .plan-table th{font-size:12pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .plan-table .day-cell{font-size:11pt;}
-  .cell-content{font-size:11pt;min-width:0;}
+  .plan-grid-wrap{box-shadow:none!important;border:none!important;padding:6px 10px!important;overflow:visible!important;}
+  /* Print header per week page */
+  .print-header{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #2A4332;padding-bottom:8px;margin-bottom:10px;}
+  .print-header-center{text-align:center;}
+  .print-header-center .ph-title{font-family:"Aref Ruqaa",serif;font-size:17pt;color:#2A4332;font-weight:700;}
+  .print-header-center .ph-sub{font-size:9pt;color:#555;margin-top:2px;}
+  .print-header-side{font-size:10pt;color:#333;line-height:1.7;}
+  .print-header-side b{color:#2A4332;}
+  .print-logo{font-family:"Aref Ruqaa",serif;font-size:22pt;color:#C9A24B;}
+  /* Plan table print */
+  .plan-table{font-size:10pt;width:100%;}
+  .plan-table th{font-size:11pt;background:#2A4332!important;color:#fff!important;padding:7px 10px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .plan-table td{border:1px solid #bbb;vertical-align:top;padding:0;}
+  .day-cell{font-size:10pt;padding:6px 10px!important;background:#f5f0e4!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .day-date{font-size:8.5pt;color:#666;}
+  .hijri-date{font-size:8pt;color:#8B6914;display:block;margin-top:1px;}
+  .cell-content{font-size:10pt;padding:6px 8px;min-width:0;min-height:40px;}
+  .cell-input{display:none!important;}
+  /* Score box */
+  .score-box{display:block;border:1.5px solid #999;border-radius:3px;width:26px;height:20px;margin:3px auto 4px;background:#fff;}
+  .score-col{width:32px!important;background:#f9f5ea!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;text-align:center;vertical-align:middle;padding:0!important;}
+  .score-col::after{content:"";display:block;width:26px;height:20px;border:1.5px solid #999;border-radius:3px;margin:auto;background:#fff;}
+  .cell-with-score{display:flex;flex-direction:column;height:100%;}
+  /* Week blocks */
   .week-block{page-break-after:always;margin-bottom:0;}
   .week-block:last-child{page-break-after:avoid;}
-  .week-header{font-size:14pt;}
-  .cell-input{display:none!important;}
+  .week-header{display:none;}
   .plan-controls{display:none!important;}
   .back-link{display:none!important;}
   .page-head{display:none!important;}
+  .export-row{display:none!important;}
+  /* Hide all views except plan */
+  #view-home,#view-detail,#view-session,#view-stats{display:none!important;}
+  #view-plan{display:block!important;}
+  .plan-grid-wrap{display:block!important;}
 }
 @media(max-width:560px){
   .topbar{flex-direction:column;align-items:flex-start;gap:14px;}
@@ -637,30 +665,64 @@ ${pRange(rs,re)}`;rp=re>=604?1:re+1;}
   renderPlan(plan);showToast('تم توليد الخطة ✓');
 }
 
+/* Convert Gregorian to Hijri (approximate, sufficient for display) */
+function toHijri(gDate){
+  const jd=Math.floor((14+31*(gDate.getMonth()+1)/12+gDate.getFullYear()+(gDate.getFullYear()/4|0)-(gDate.getFullYear()/100|0)+(gDate.getFullYear()/400|0)+gDate.getDate()-32075));
+  const l=jd-1948440+10632,n=((l-1)/10631)|0,ll=l-10631*n+354;
+  const j=((10985-ll)/5316)|0,kk=ll-29*j-((j*390)/10|0);
+  const m=((kk/11)|0)+ ((((11*kk+330)/319)|0)>0?1:0),d2=kk- ((m<8?m-1:m)*29 + ((m<8?m-1:m)/2|0));
+  const y=30*n+j+(m>8?1:0);
+  const HM=['محرم','صفر','ربيع الأول','ربيع الثاني','جمادى الأولى','جمادى الثانية','رجب','شعبان','رمضان','شوال','ذو القعدة','ذو الحجة'];
+  return`${d2} ${HM[m-1]} ${y}هـ`;
+}
+
 function renderPlan(plan){
+  const s=gs(CID);
   const wrap=document.getElementById('planGridWrap');wrap.style.display='block';
   const grid=document.getElementById('planGrid');
   const allD=Object.keys(plan.cells).sort();
   const weeks=[];let wk=[];
   allD.forEach(d=>{wk.push(d);const dow=new Date(d+'T12:00:00').getDay();if(dow===5||d===allD[allD.length-1]){weeks.push(wk);wk=[];}});
   if(wk.length)weeks.push(wk);
+  const planFrom=allD[0];const planTo=allD[allD.length-1];
+  const d0=new Date(planFrom+'T12:00:00'),dE=new Date(planTo+'T12:00:00');
+  const periodStr=`${d0.getDate()} ${MN[d0.getMonth()]} ${d0.getFullYear()} — ${dE.getDate()} ${MN[dE.getMonth()]} ${dE.getFullYear()}`;
   grid.innerHTML=weeks.map((wk,wi)=>{
     const ws=new Date(wk[0]+'T12:00:00'),we=new Date(wk[wk.length-1]+'T12:00:00');
     const wlbl=`الأسبوع ${wi+1} — ${ws.getDate()} ${MN[ws.getMonth()]} إلى ${we.getDate()} ${MN[we.getMonth()]}`;
+    const wHijriFrom=toHijri(ws),wHijriTo=toHijri(we);
     const rows=wk.map(dk=>{
       const c=plan.cells[dk];const d=new Date(dk+'T12:00:00');
-      return`<tr><td class="day-cell">${DN[d.getDay()]}<span class="day-date">${d.getDate()} ${MN[d.getMonth()]}</span></td><td>${makeC(dk,'h',c.hc||c.h)}</td><td>${makeC(dk,'l',c.lc||c.l)}</td><td>${makeC(dk,'r',c.rc||c.r)}</td></tr>`;
+      const hijri=toHijri(d);
+      const dayCellHtml=`${DN[d.getDay()]}<span class="day-date">${d.getDate()} ${MN[d.getMonth()]}</span><span class="hijri-date">${hijri}</span>`;
+      return`<tr><td class="day-cell">${dayCellHtml}</td><td style="min-width:150px">${makeC(dk,'h',c.hc||c.h)}</td><td class="score-col"></td><td style="min-width:150px">${makeC(dk,'l',c.lc||c.l)}</td><td class="score-col"></td><td style="min-width:150px">${makeC(dk,'r',c.rc||c.r)}</td><td class="score-col"></td></tr>`;
     }).join('');
-    return`<div class="week-block"><h4 class="week-header">${wlbl}</h4><table class="plan-table"><thead><tr><th style="min-width:90px">اليوم</th><th style="min-width:170px">الحفظ</th><th style="min-width:170px">الربط</th><th style="min-width:170px">المراجعة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    /* print header shown once per week page */
+    const printHeader=`<div class="print-header">
+      <div class="print-header-side" style="text-align:right;">
+        <div>الطالب: <b>${s?eh(s.name):'—'}</b></div>
+        <div>المعلم: <b>أ. عبدالله أمين</b></div>
+      </div>
+      <div class="print-header-center">
+        <div class="ph-title">منارة — خطة التحفيظ</div>
+        <div class="ph-sub">الأسبوع ${wi+1} · ${ws.getDate()} ${MN[ws.getMonth()]} — ${we.getDate()} ${MN[we.getMonth()]}</div>
+        <div class="ph-sub" style="color:#8B6914;">${wHijriFrom} — ${wHijriTo}</div>
+      </div>
+      <div class="print-header-side" style="text-align:left;">
+        <div>الفترة: <b>${periodStr}</b></div>
+        <div style="margin-top:4px;font-size:9pt;color:#888;">طبعة الملك فهد</div>
+      </div>
+    </div>`;
+    return`<div class="week-block">${printHeader}<h4 class="week-header">${wlbl}</h4><table class="plan-table"><thead><tr><th style="min-width:90px">اليوم</th><th>الحفظ</th><th style="width:28px;padding:4px;text-align:center;">✓</th><th>الربط</th><th style="width:28px;padding:4px;text-align:center;">✓</th><th>المراجعة</th><th style="width:28px;padding:4px;text-align:center;">✓</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }).join('');
 }
 
 function makeC(dk,col,val){
   const safe=(val||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-
-  return val
+  const content=val
     ?`<div class="cell-content" onclick="editCell(this,'${dk}','${col}')">${safe}</div>`
     :`<div class="cell-content empty-cell" onclick="editCell(this,'${dk}','${col}')">اضغط للتعديل</div>`;
+  return`<div class="cell-with-score">${content}<div class="score-box"></div></div>`;
 }
 function editCell(el,dk,col){
   const s=gs(CID);if(!s||!s.plan)return;
