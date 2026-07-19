@@ -316,6 +316,15 @@ main{max-width:1100px;margin:0 auto;padding:36px clamp(16px,5vw,40px) 0;}
     </div>
     <div class="field-row">
       <div class="field">
+        <label>اتجاه الحفظ والمراجعة</label>
+        <select id="planDir" onchange="onPlanDirChange()">
+          <option value="fwd">تصاعدي — من الفاتحة إلى الناس</option>
+          <option value="rev">تنازلي — من الناس إلى الفاتحة</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
         <label>صفحة بداية الحفظ في المصحف</label>
         <input type="number" id="planHifzPage" min="1" max="604">
         <small id="planHifzLbl" style="color:var(--ink-soft);font-size:12px;margin-top:4px;display:block;"></small>
@@ -568,7 +577,8 @@ function openPlanView(){
   document.getElementById('planEnd').value=di(end);
   document.getElementById('planPages').value=s.ppdDay||1;
   document.getElementById('planRevUnit').value=s.revUnit||20;
-  const hp=s.currentPage||1;
+  document.getElementById('planDir').value=s.planDir||'fwd';
+  const hp=s.currentPage||(s.planDir==='rev'?604:1);
   document.getElementById('planHifzPage').value=hp;
   document.getElementById('planHifzLbl').textContent=pDesc(hp);
   const rp=s.revPage||1;
@@ -577,6 +587,16 @@ function openPlanView(){
   if(s.plan&&s.plan.cells){renderPlan(s.plan);}
   else{document.getElementById('planGridWrap').style.display='none';}
   sv('view-plan');
+}
+/* عند تبديل الاتجاه لطالب لسه ما ولّدش خطة قبل كده، تُقترح صفحة بداية مناسبة تلقائياً
+   (آخر المصحف للاتجاه التنازلي، أول المصحف للتصاعدي) بدل ما تفضل صفر */
+function onPlanDirChange(){
+  const s=gs(CID);if(!s)return;
+  if(s.currentPage)return;
+  const dir=document.getElementById('planDir').value;
+  const hp=dir==='rev'?604:1;
+  document.getElementById('planHifzPage').value=hp;
+  document.getElementById('planHifzLbl').textContent=pDesc(hp);
 }
 
 /* ======================================================  STUDENTS  */
@@ -667,20 +687,24 @@ function generatePlan(){
   if(end<=start){showToast('تاريخ النهاية يجب أن يكون بعد البداية');return;}
   const ppd=parseFloat(document.getElementById('planPages').value)||1;
   const revPgs=parseInt(document.getElementById('planRevUnit').value)||0;
-  let hp=parseInt(document.getElementById('planHifzPage').value)||s.currentPage||1;
+  const dir=document.getElementById('planDir').value==='rev'?'rev':'fwd';
+  const fwd=dir==='fwd';
+  let hp=parseInt(document.getElementById('planHifzPage').value)||s.currentPage||(fwd?1:604);
   let rp=parseInt(document.getElementById('planRevPage').value)||1;
-  s.ppdDay=ppd;s.revUnit=revPgs;s.currentPage=hp;s.revPage=rp;
+  s.ppdDay=ppd;s.revUnit=revPgs;s.currentPage=hp;s.revPage=rp;s.planDir=dir;
   const days=[];const cur=new Date(start);
   while(cur<=end){days.push(new Date(cur));cur.setDate(cur.getDate()+1);}
   const hist=[];const cells={};
   days.forEach(day=>{
     const key=di(day);
-    const hs=Math.min(hp,604);
-    const he=Math.min(Math.max(Math.round(hp+ppd)-1,hs),604);
+    /* الاتجاه التنازلي (من الناس إلى الفاتحة) بيتحرك بنفس منطق التصاعدي بالظبط لكن بالمقلوب:
+       يبدأ من الصفحة الأعلى وينزل، وكل يوم يكمل من حيث ما وقف اليوم اللي قبله */
+    let hs,he;
+    if(fwd){hs=Math.min(hp,604);he=Math.min(Math.max(Math.round(hp+ppd)-1,hs),604);hp=he+1;}
+    else{hs=Math.max(hp,1);he=Math.max(Math.min(Math.round(hp-ppd)+1,hs),1);hp=he-1;}
     const htxt=`ص${hs}–ص${he}
 ${pRange(hs,he)}`;
     hist.push({s:hs,e:he});
-    hp=he+1;
     let ltxt='';
     if(hist.length>=3){const p2=hist[hist.length-3],p1=hist[hist.length-2];ltxt=`ص${p2.s}–ص${p1.e}
 ${pRange(p2.s,p1.e)}`;}
@@ -688,11 +712,16 @@ ${pRange(p2.s,p1.e)}`;}
 ${pRange(p1.s,p1.e)}`;}
     let rtxt='';
     if(revPgs===0){rtxt='سورة (يُحدَّد يدوياً)';}
-    else if(revPgs>0){const rs=Math.min(rp,604);const re=Math.min(rp+revPgs-1,604);rtxt=`ص${rs}–ص${re}
-${pRange(rs,re)}`;rp=re>=604?1:re+1;}
+    else if(revPgs>0){
+      let rs,re;
+      if(fwd){rs=Math.min(rp,604);re=Math.min(rp+revPgs-1,604);rp=re>=604?1:re+1;}
+      else{rs=Math.max(rp,1);re=Math.max(rp-revPgs+1,1);rp=re<=1?604:re-1;}
+      rtxt=`ص${rs}–ص${re}
+${pRange(rs,re)}`;
+    }
     cells[key]={h:htxt,hc:'',l:ltxt,lc:'',r:rtxt,rc:''};
   });
-  const plan={sd,ed,cells};s.plan=plan;saveDB();
+  const plan={sd,ed,cells,dir};s.plan=plan;saveDB();
   renderPlan(plan);showToast('تم توليد الخطة ✓');
 }
 
@@ -718,6 +747,7 @@ function renderPlan(plan){
   const planFrom=allD[0];const planTo=allD[allD.length-1];
   const d0=new Date(planFrom+'T12:00:00'),dE=new Date(planTo+'T12:00:00');
   const periodStr=`${d0.getDate()} ${MN[d0.getMonth()]} ${d0.getFullYear()} — ${dE.getDate()} ${MN[dE.getMonth()]} ${dE.getFullYear()}`;
+  const dirLabel=plan.dir==='rev'?'تنازلي (من الناس إلى الفاتحة)':'تصاعدي (من الفاتحة إلى الناس)';
   grid.innerHTML=weeks.map((wk,wi)=>{
     const ws=new Date(wk[0]+'T12:00:00'),we=new Date(wk[wk.length-1]+'T12:00:00');
     const wlbl=`الأسبوع ${wi+1} — ${ws.getDate()} ${MN[ws.getMonth()]} إلى ${we.getDate()} ${MN[we.getMonth()]}`;
@@ -742,6 +772,7 @@ function renderPlan(plan){
       <div class="print-header-side" style="text-align:left;">
         <div>الفترة: <b>${periodStr}</b></div>
         <div style="margin-top:4px;font-size:9pt;color:#888;">طبعة الملك فهد</div>
+        <div style="margin-top:2px;font-size:9pt;color:#888;">الاتجاه: ${dirLabel}</div>
       </div>
     </div>`;
     return`<div class="week-block">${printHeader}<h4 class="week-header">${wlbl}</h4><table class="plan-table"><thead><tr><th style="min-width:90px">اليوم</th><th>الحفظ</th><th style="width:28px;padding:4px;text-align:center;">✓</th><th>الربط</th><th style="width:28px;padding:4px;text-align:center;">✓</th><th>المراجعة</th><th style="width:28px;padding:4px;text-align:center;">✓</th></tr></thead><tbody>${rows}</tbody></table></div>`;
